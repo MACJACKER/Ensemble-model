@@ -1,0 +1,401 @@
+---
+title: "simpleEnsembleGuide"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{simpleEnsembleGuide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(simpleEnsembleGroup8)
+```
+
+# Introduction
+This tutorial covers various regression models including linear, ridge, lasso, and elastic net models, as well as ensemble methods and comparisons of these models using the iris and mtcars datasets. We will have 3 main data sets including continuous, binary, and in the case where p >> n. Each of these data sets will be used to demonstrate how to fit into the model of this package
+
+# Continous Tutorial
+
+## Linear Model Function validation and comparison
+Background : In this we are comparing the results between the linear model we created and the r built-in model
+Step 1: Load the Data
+Step 2: Fit the Custom Linear Model or our model and then print the summary of the model
+Step 3: Fit the Model Using R's Built-in Function and then print the summary of the model
+Step 4: Check the o/p to see if they are same 
+
+```{r}
+data(iris)
+test_model <- fit_linear_model(iris$Sepal.Length, iris[, 3:4], add_intercept = TRUE, bagging = FALSE)
+print(test_model$summary)
+
+#Comparing with r builtin results
+lm_model <- lm(Sepal.Length ~ Petal.Length + Petal.Width, data = iris)
+summary(lm_model)
+```
+
+
+
+## Model fitting and prediction
+All of the models will follow those procedure
+
+Step 1: Load the Data
+Step 2: Split the dataset into training and testing sets (70:30)
+Step 3: Fit our Model on the training dataset and then fit the predict model on the test dataset
+Step 4: Print the summary of the fitted training dataset
+Step 5: Print the predictions of the test data
+
+At the end, the ensemble function will be called and allow the users to fit multiple models at the same time
+
+## Linear Model
+
+## 70:30 datasplit liner regression 
+```{r cars}
+# Load the iris dataset
+data(iris)
+# Convert species to a numeric factor for regression; let's predict Sepal.Length
+iris$Species <- as.numeric(as.factor(iris$Species))
+# Splitting the dataset into training and testing sets (70:30)
+set.seed(123)  # for reproducibility
+sample_size <- floor(0.7 * nrow(iris))
+train_indices <- sample(seq_len(nrow(iris)), size = sample_size)
+train <- iris[train_indices, ]
+test <- iris[-train_indices, ]
+# Selecting predictors and the response variable
+train_X <- train[, c("Sepal.Width", "Petal.Length", "Petal.Width", "Species")]
+train_y <- train$Sepal.Length
+test_X <- test[, c("Sepal.Width", "Petal.Length", "Petal.Width", "Species")]
+# Fit the model using the training data
+fitted_model <- fit_linear_model(train_y, train_X, add_intercept = TRUE, bagging = FALSE)
+# Make predictions on the testing set
+predictions <- predict_model(fitted_model, test_X, type = "response")
+# Print the model summary and predictions
+print(fitted_model$summary)
+print(predictions)
+
+```
+
+## Ridge Model Function
+```{r}
+# Load the iris dataset if not already loaded
+data(iris)
+
+# Setting up the predictors and the target variable for Gaussian model
+X_gaussian <- iris[, c("Sepal.Width", "Petal.Width", "Sepal.Length")]
+y_gaussian <- iris$Petal.Length
+
+# Splitting the dataset into training and testing sets (70:30)
+set.seed(123)  # for reproducibility
+sample_size <- floor(0.7 * nrow(iris))
+train_indices <- sample(seq_len(nrow(iris)), size = sample_size)
+train_X <- as.matrix(X_gaussian[train_indices, ])
+train_y <- y_gaussian[train_indices]
+test_X <- as.matrix(X_gaussian[-train_indices, ])
+test_y <- y_gaussian[-train_indices]
+
+# Fit the ridge regression model using the training data
+fitted_ridge_model <- fit_ridge_model(train_y, train_X, model_type = "gaussian", add_intercept = TRUE, bagging = FALSE)
+
+# Print the fitted model's details for inspection
+print(fitted_ridge_model$model)  # Print the model object itself if needed
+print(fitted_ridge_model$coefficients)  # Coefficients of the fitted model
+
+# Make predictions on the testing set
+test_predictions <- predict_model(fitted_ridge_model, test_X, type = "response")
+
+# Print predictions
+print(test_predictions)
+
+```
+
+## Lasso Model Function
+```{r}
+# Load the iris dataset if not already loaded
+data(iris)
+# Setting up the predictors and the target variable for Gaussian model
+X_gaussian <- iris[, c("Sepal.Width", "Petal.Width", "Sepal.Length")]
+y_gaussian <- iris$Petal.Length
+# Splitting the dataset into training and testing sets (70:30)
+set.seed(123)  # for reproducibility
+sample_size <- floor(0.7 * nrow(iris))
+train_indices <- sample(seq_len(nrow(iris)), size = sample_size)
+train_X <- as.matrix(X_gaussian[train_indices, ])
+train_y <- y_gaussian[train_indices]
+test_X <- as.matrix(X_gaussian[-train_indices, ])
+test_y <- y_gaussian[-train_indices]
+# Fit the lasso regression model using the training data
+fitted_lasso_model <- fit_lasso_model(train_y, train_X, model_type = "gaussian", add_intercept = TRUE, bagging = FALSE)
+# Print the fitted model's details for inspection
+print(fitted_lasso_model$model)  # Print the model object itself if needed
+print(fitted_lasso_model$coefficients)  # Coefficients of the fitted model
+# Make predictions on the testing set
+test_predictions <- predict_model(fitted_lasso_model, test_X, type = "response")
+# Print predictions
+print(test_predictions)
+```
+
+## Elastic Net Model Function
+
+this function will test in a case of bagging = TRUE. It takes a dataset, repeatedly samples
+from it with replacement, fits a model on each sample, and then averages the results to improve model stability and
+accuracy. It computes averaged coefficients, standard errors, t-values, p-values, and variable importance scores.
+
+```{r}
+# Load the iris dataset
+data(iris)
+# Prepare Gaussian model data
+X_gaussian <- as.matrix(iris[, c("Sepal.Width", "Petal.Width", "Sepal.Length")])
+y_gaussian <- iris$Petal.Length
+# Splitting the dataset into training and testing sets (70:30)
+set.seed(123)  # for reproducibility
+sample_size <- floor(0.7 * nrow(iris))
+train_indices <- sample(seq_len(nrow(iris)), size = sample_size)
+train_X <- as.matrix(X_gaussian[train_indices, ])
+train_y <- y_gaussian[train_indices]
+test_X <- as.matrix(X_gaussian[-train_indices, ])
+test_y <- y_gaussian[-train_indices]
+
+# Fit Elastic Net for Gaussian model without bagging
+result_elastic_net_gaussian <- fit_elastic_net_model(train_y, train_X, alpha = 0.5, model_type = "gaussian", add_intercept = TRUE, bagging = FALSE)
+print(result_elastic_net_gaussian$model)
+
+# Make predictions on the testing set(without bagging)
+test_predictions <- predict_model(fitted_lasso_model, test_X, type = "response")
+# Print predictions
+print(test_predictions)
+
+
+# Fit Elastic Net for Gaussian model with bagging
+result_elastic_net_gaussian_bagging <- fit_elastic_net_model(train_y, train_X, alpha = 0.5, model_type = "gaussian", add_intercept = TRUE, bagging = TRUE, R = 50)
+print(result_elastic_net_gaussian_bagging)
+
+# Make predictions on the testing set(with bagging)
+test_predictions <- predict_model(fitted_lasso_model, test_X, type = "response")
+# Print predictions
+print(test_predictions) 
+```
+
+## Random Forest Model Function
+
+```{r}
+# Load the iris dataset
+data(iris)
+# Prepare Gaussian model data
+X_gaussian <- as.matrix(iris[, c("Sepal.Width", "Petal.Width", "Sepal.Length")])
+y_gaussian <- iris$Petal.Length
+# Splitting the dataset into training and testing sets (70:30)
+set.seed(123)  # for reproducibility
+sample_size <- floor(0.7 * nrow(iris))
+train_indices <- sample(seq_len(nrow(iris)), size = sample_size)
+train_X <- as.matrix(X_gaussian[train_indices, ])
+train_y <- y_gaussian[train_indices]
+test_X <- as.matrix(X_gaussian[-train_indices, ])
+test_y <- y_gaussian[-train_indices]
+
+# Fit Random Forest for Gaussian model (Regression)
+result_rf_gaussian <- fit_random_forest_model(train_y, train_X, model_type = 'gaussian')
+print(result_rf_gaussian$model)
+
+# Make predictions on the testing set
+test_predictions <- predict_model(result_rf_gaussian, test_X, type = "response")
+# Print predictions
+print(test_predictions)
+
+```
+
+## Ensemble Model implemented of ridge, lasso and elastic-net models
+
+Step 1: Load the Data
+Step 2: Extract X and y values
+Step 3: Pick three models you want to do ensemble modelling on
+Step 4: Fit our Ensemble Model
+Step 4: Print the combined predictions
+Step 5: Print the model details
+
+```{r}
+# Load the iris dataset 
+data(iris)
+
+# Setting up the data
+X <- iris[, c("Sepal.Length", "Sepal.Width", "Petal.Width")]  # Exclude the target variable
+y <- iris$Petal.Length  # We will predict the Petal.Length
+
+# Define the list of model fitting functions
+model_list <- c("fit_elastic_net_model", "fit_ridge_model", "fit_lasso_model")
+
+# Fit the ensemble model using the training data
+ensemble_results <- ensemble_model_fitting(y, X, model_type = 'gaussian', model_list = model_list)
+
+# Print ensemble results and individual model details
+print(ensemble_results$combined_predictions)
+# print(ensemble_results$model_details) # you can uncomment this line of code and run it
+```
+
+
+# Binary Tutorial
+
+## Overview
+#This tutorial provides a step-by-step guide on fitting a binomial model using the dataset `mtcars`. It demonstrates how to prepare the data, build a logistic regression model, lasso model, ridge model, elastic net model, random forest model, prediction, and ensemble model for binary predictors.
+
+## Dataset
+#The tutorial utilizes the `mtcars` dataset, which is included in the R base package. This dataset contains information about various car models.
+
+## Comparison of results between custom logistics model and r built-in model
+
+```{r}
+# 1. **Load the dataset**: First, load the `mtcars` dataset into your R environment.
+data(mtcars) 
+X <- mtcars[, c("hp", "wt")] # Predictor variables 
+y <- as.numeric(mtcars$am == 1) # Response variable (binary)
+y
+my_model_coefficients <- fit_logistic_model(y,X)
+print(my_model_coefficients$summary)
+
+# Built-in Logistic Regression Model
+my_model <- glm(y ~ hp+wt, data = mtcars, family = binomial(link = "logit"))
+
+# Print model summary
+print(summary(my_model))
+```
+
+## Ridge Model
+
+This example demonstrates how to fit a Ridge regression model for a binomial outcome using the `mtcars` dataset. The Ridge regression is a technique used for handling multicollinearity in linear regression models.
+```{r}
+#Example for Binomial model
+data(mtcars)
+X <- mtcars[, c("hp", "wt")]
+y <- ifelse(mtcars$am == 1, 1, 0)  # Converting 'am' to a binary outcome
+result_ridge_binomial <- fit_ridge_model(y, X, model_type = "binomial", add_intercept = TRUE, bagging = TRUE, R = 50)
+print(result_ridge_binomial)
+```
+
+## Lasso Model
+
+This example demonstrates how to fit a Lasso regression model for a binomial outcome using the `mtcars` dataset. Lasso regression is a technique used for feature selection and regularization in linear regression models.
+```{r}
+data(mtcars)
+X <- mtcars[, c("hp", "wt")]
+y <- ifelse(mtcars$am == 1, 1, 0)  # Converting 'am' to a binary outcome
+result_lasso_binomial <- fit_lasso_model(y, X, model_type = "binomial", add_intercept = TRUE, bagging = TRUE, R = 50)
+print(result_lasso_binomial)
+```
+
+## Elastic Net Model
+
+This example demonstrates how to fit an Elastic Net regression model for a binomial outcome using the `mtcars` dataset. Elastic Net regression combines the penalties of Lasso and Ridge regression, offering a balance between feature selection and regularization.
+```{r}
+# Example for Binomial model
+data(mtcars)
+X <- mtcars[, c("hp", "wt")]
+y <- ifelse(mtcars$am == 1, 1, 0)  # Converting 'am' to a binary outcome
+result_elastic_net_binomial <- fit_elastic_net_model(y, X, alpha = 0.5, model_type = "binomial", add_intercept = TRUE, bagging = TRUE, R = 50)
+print(result_elastic_net_binomial)
+```
+
+## Random Forest Model
+
+This example demonstrates how to fit a Random Forest model for a binomial outcome using the `mtcars` dataset. Random Forest is an ensemble learning method that constructs multiple decision trees during training and outputs the mode of the classes (classification) or the mean prediction (regression) of the individual trees.
+```{r}
+data(mtcars)
+X <- mtcars[, c("hp", "wt")]
+y <- as.numeric(mtcars$am != 0)
+result_rf_binomial <- fit_random_forest_model(y, X, model_type = "binomial")
+print(result_rf_binomial)
+```
+
+## Ensemble Model
+
+This example demonstrates how to create an ensemble model for a binomial outcome using the `mtcars` dataset. Ensemble models combine predictions from multiple individual models to improve predictive performance and robustness.
+```{r}
+#Assuming `fit_linear_model` and `fit_random_forest_model` are used.
+data(mtcars)
+X <- mtcars[, -which(names(mtcars) == "mpg")]
+y <- mtcars$am # For gaussian; use a binary response for 'binomial'
+
+model_list <- c("fit_logistic_model", "fit_random_forest_model","fit_lasso_model")
+
+results <- ensemble_model_fitting(y, X, model_type = 'binomial', model_list = model_list)
+print(results$combined_predictions)
+
+# To view individual model details and predictions:
+# print(results$model_details) # you can uncomment this line of code and run it
+```
+
+
+## Predict Function
+
+Once your model is fit using desired technique, you may want to test your model on new datasets and see the generalizability. Use the predict function to do so.
+```{r}
+X <- mtcars[, c("hp", "wt")]
+y <- as.numeric(mtcars$am == 1)  # Response variable (binary)
+num_rows <- nrow(mtcars)
+num_train <- round(0.7 * num_rows)
+train_indices <- sample(1:num_rows, num_train)
+training_data <- X[train_indices, ]
+training_labels <- y[train_indices]
+testing_data <- X[-train_indices, ]
+testing_labels <- y[-train_indices]
+newdata <- testing_data
+model<- fit_logistic_model(y,X)
+predict_model(model, newdata, type = "response", threshold = 0.5)
+```
+
+# Special data set where p >> n
+
+```{r}
+# Set the seed for reproducibility
+set.seed(123)
+
+# Define the number of observations and predictors
+num_observations = 50
+num_predictors = 100
+
+# Generate a random dataset
+# Each row corresponds to an observation
+# Each column corresponds to a predictor
+X <- matrix(rnorm(num_observations * num_predictors), 
+               nrow = num_observations, 
+               ncol = num_predictors)
+
+# Convert matrix to data frame
+X <- as.data.frame(X)
+
+# Label the features
+feature_labels <- paste("Feature", 1:num_predictors, sep="")
+names(X) <- feature_labels
+
+y <- rnorm(num_observations)
+```
+
+
+## Selecting most important features
+```{r}
+# Define the number of top predictors to select
+K <- 10
+# Call the select_informative_predictors function
+result <- select_informative_predictors(X,K)
+result$top_predictors_data
+# Print the top K predictors and their scores
+cat("Top Predictors:\n")
+print(result$predictor_names)
+cat("\nScores:\n")
+print(result$scores)
+```
+## Fitting models after selecting most important features
+```{r}
+model_list <- c("fit_linear_model", "fit_ridge_model", "fit_random_forest_model")
+ensemble_fit <- ensemble_model_fitting(y, result$top_predictors_data, model_type = "gaussian", model_list)
+print(ensemble_fit$combined_predictions)
+
+# To view individual model details and predictions:
+# print(results$model_details) # you can uncomment this line of code and run it
+```
+
+
